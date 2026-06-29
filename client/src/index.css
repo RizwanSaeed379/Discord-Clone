@@ -120,11 +120,40 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
+
+/* Discord exact dark-theme tokens — used via arbitrary values in JSX */
+:root {
+  --dc-bg-tertiary:   #1e1f22;
+  --dc-bg-secondary:  #2b2d31;
+  --dc-bg-secondary-alt: #232428;
+  --dc-bg-primary:    #313338;
+  --dc-bg-input:      #383a40;
+  --dc-bg-msg-hover:  #2e3035;
+  --dc-bg-modifier-hover: #35373c;
+  --dc-bg-modifier-selected: #404249;
+  --dc-text-normal:   #f2f3f5;
+  --dc-text-muted:    #949ba4;
+  --dc-text-interactive: #b5bac1;
+  --dc-text-interactive-hover: #dbdee1;
+  --dc-text-link:     #00a8fc;
+  --dc-brand:         #5865f2;
+  --dc-online:        #23a55a;
+  --dc-idle:          #f0b232;
+  --dc-dnd:           #f23f43;
+  --dc-offline:       #80848e;
+  --dc-header-secondary: #f2f3f5;
+}
+
+/* Scrollbar — Discord-style thin dark scrollbar */
+::-webkit-scrollbar        { width: 8px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #1a1b1e; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #111214; }

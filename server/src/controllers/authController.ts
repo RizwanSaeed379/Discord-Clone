@@ -6,6 +6,10 @@ import { pool } from "../db/pool.js"
 const JWT_SECRET = process.env.JWT_SECRET as string
 const TOKEN_COOKIE = "token"
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:5173"
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID as string
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET as string
+const GOOGLE_CALLBACK_URL = `${process.env.SERVER_ORIGIN ?? "http://localhost:4000"}/api/auth/google/callback`
 
 function setAuthCookie(res: Response, userId: number) {
   const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" })
@@ -93,4 +97,103 @@ export async function me(req: Request, res: Response) {
   }
 
   res.json({ user })
+}
+
+export function googleAuth(_req: Request, res: Response) {
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_CALLBACK_URL,
+    response_type: "code",
+    scope: "email profile",
+    access_type: "offline",
+    prompt: "select_account",
+  })
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
+}
+
+export async function googleCallback(req: Request, res: Response) {
+  const { code } = req.query
+
+  if (typeof code !== "string") {
+    res.redirect(`${CLIENT_ORIGIN}/login?error=oauth_failed`)
+    return
+  }
+
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_CALLBACK_URL,
+        grant_type: "authorization_code",
+      }),
+    })
+    const tokenData = (await tokenRes.json()) as { access_token?: string }
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      res.redirect(`${CLIENT_ORIGIN}/login?error=oauth_failed`)
+      return
+    }
+
+    const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    })
+    const profile = (await profileRes.json()) as {
+      id?: string
+      email?: string
+      name?: string
+    }
+
+    if (!profile.id || !profile.email) {
+      res.redirect(`${CLIENT_ORIGIN}/login?error=oauth_failed`)
+      return
+    }
+
+    let userId: number
+
+    const byGoogleId = await pool.query("SELECT id FROM users WHERE google_id = $1", [profile.id])
+    if (byGoogleId.rows.length > 0) {
+      userId = byGoogleId.rows[0].id
+    } else {
+      const byEmail = await pool.query("SELECT id FROM users WHERE email = $1", [profile.email])
+      if (byEmail.rows.length > 0) {
+        await pool.query("UPDATE users SET google_id = $1 WHERE email = $2", [
+          profile.id,
+          profile.email,
+        ])
+        userId = byEmail.rows[0].id
+      } else {
+        const username = await generateUniqueUsername(
+          profile.name ?? profile.email.split("@")[0],
+        )
+        const inserted = await pool.query(
+          "INSERT INTO users (username, email, google_id) VALUES ($1, $2, $3) RETURNING id",
+          [username, profile.email, profile.id],
+        )
+        userId = inserted.rows[0].id
+      }
+    }
+
+    setAuthCookie(res, userId)
+    res.redirect(CLIENT_ORIGIN)
+  } catch {
+    res.redirect(`${CLIENT_ORIGIN}/login?error=oauth_failed`)
+  }
+}
+
+async function generateUniqueUsername(name: string): Promise<string> {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .slice(0, 28)
+
+  let candidate = base
+  for (;;) {
+    const existing = await pool.query("SELECT 1 FROM users WHERE username = $1", [candidate])
+    if (existing.rows.length === 0) return candidate
+    candidate = `${base}_${Math.floor(Math.random() * 9000 + 1000)}`
+  }
 }

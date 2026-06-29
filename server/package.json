@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "migrate:google": "tsx src/db/migrate_google.ts",
+    "migrate:main": "tsx src/db/migrate_main.ts"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +22,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.21.0"
+    "pg": "^8.21.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
